@@ -2,15 +2,15 @@ name: Deploy to Azure App Service (Docker Hub)
 
 on:
   push:
-    branches: [ main, develop ]
-    paths:
-      - "pages/**"
-      - "components/**"
-      - "services/**"
-      - "styles/**"
-      - "package.json"
-      - "Dockerfile"
-      - ".github/workflows/azure-deploy.yml"
+    branches: deploy
+    # paths:
+    #   - "pages/**"
+    #   - "components/**"
+    #   - "services/**"
+    #   - "styles/**"
+    #   - "package.json"
+    #   - "Dockerfile"
+    #   - ".github/workflows/azure-deploy.yml"
   pull_request:
     branches: [ main ]
   workflow_dispatch:
