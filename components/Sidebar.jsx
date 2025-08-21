@@ -9,13 +9,13 @@ import { useRouter } from "next/navigation"
 const menuItems = [
     { icon: Car, label: "차량", id: "branch" ,path: "/car"},
     { icon: Users, label: "사용자", id: "users" ,path: "/user"},
-    { icon: Truck, label: "운행", id: "operation", active: true ,path: "/car-tracking"},
-    { icon: BarChart3, label: "분석", id: "analytics" ,path: "/analytics"}
+    { icon: Truck, label: "운행", id: "operation" ,path: "/car-tracking"},
+    { icon: BarChart3, label: "분석", id: "analytics", active: true ,path: "/analytics"}
     // { icon: Settings, label: "시스템 설정", id: "settings" },
 ]
 
 export default function Sidebar() {
-    const [activeItem, setActiveItem] = useState("operation")
+    const [activeItem, setActiveItem] = useState("analytics")
     const router = useRouter()
 
     const handleNavigation = (item) => {
