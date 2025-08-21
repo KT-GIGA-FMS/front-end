@@ -43,7 +43,7 @@ export default function CarServicePage({ initialCars = [] }) {
       const newCar = {
         carModelId: cars.length + 1,
         plateNo: carData.plateNo,
-        imageUrl: carData.imageUrl || 'https://example.com/default-car.jpg',
+        // imageUrl: carData.imageUrl || 'https://example.com/default-car.jpg',
         fuelType: carData.fuelType || '휘발유',
         efficiencyKmPerL: carData.efficiencyKmPerL || 0,
         status: carData.status === 'AVAILABLE' ? '사용가능' : carData.status,
@@ -65,63 +65,65 @@ export default function CarServicePage({ initialCars = [] }) {
   ];
   return (
     
-    <main className=" w-full bg-gray-50">
+    <main className="w-full h-full bg-gray-50 flex flex-col">
         <NavBar tabs={tabs} />
-        <div className="flex justify-end mt-4">
-        <button className="bg-gray-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium" onClick={() => setIsModalOpen(true)}>
-                차량 등록
-        </button>
-        </div>
-        <CarRegisterModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleCarRegister} className="z-50"
-      />
-        <p className="car-sub mb-4">총 <strong>{cars.length}</strong>대</p>
-
-      {cars.length === 0 ? (
-        <div className="car-empty"><p>표시할 차량이 없습니다.</p></div>
-      ) : (
-        <div className="car-card">
-          <div className="car-tableWrap">
-            <table className="car-tbl">
-              <thead>
-                <tr>
-                  <th style={{ width: 120 }}>상태</th>
-                  <th style={{ width: 100 }}>구분</th>
-                  <th style={{ width: 80 }}>모델ID</th>
-                  <th>이미지</th>
-                  <th style={{ width: 130 }}>번호판</th>
-                  <th style={{ width: 100 }}>연료</th>
-                  <th style={{ width: 120 }}>연비 (km/L)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cars.map((c, idx) => (
-                  <tr key={`${c.plateNo || idx}`}>
-                    <td><Badge text={c.status || '-'} /></td>
-                    <td><Badge text={c.carType || '-' } /></td>
-                    <td>{c.carModelId ?? '-'}</td>
-                    <td>
-                      {c.imageUrl ? (
-                        <div className="car-imgCell">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={c.imageUrl} alt={`${c.plateNo || 'car'}`} />
-                        </div>
-                      ) : (
-                        <span className="car-dim">-</span>
-                      )}
-                    </td>
-                    <td className="car-mono">{c.plateNo ?? '-'}</td>
-                    <td>{c.fuelType ?? '-'}</td>
-                    <td>{formatNumber(c.efficiencyKmPerL)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="flex-1 p-6">
+          <div className="flex justify-end mb-4">
+            <button className="bg-gray-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium" onClick={() => setIsModalOpen(true)}>
+                    차량 등록
+            </button>
           </div>
+          <CarRegisterModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onSubmit={handleCarRegister} className="z-50"
+          />
+          
+          <p className="car-sub mb-4">총 <strong>{cars.length}</strong>대</p>
+
+          {cars.length === 0 ? (
+            <div className="car-empty"><p>표시할 차량이 없습니다.</p></div>
+          ) : (
+            <div className="car-card">
+              <div className="car-tableWrap">
+                <table className="car-tbl">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 120 }}>상태</th>
+                      <th style={{ width: 100 }}>구분</th>
+                      <th style={{ width: 80 }}>모델ID</th>
+                      {/* <th>이미지</th> */}
+                      <th style={{ width: 130 }}>번호판</th>
+                      <th style={{ width: 100 }}>연료</th>
+                      <th style={{ width: 120 }}>연비 (km/L)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cars.map((c, idx) => (
+                      <tr key={`${c.plateNo || idx}`}>
+                        <td><Badge text={c.status || '-'} /></td>
+                        <td><Badge text={c.carType || '-' } /></td>
+                        <td>{c.carModelId ?? '-'}</td>
+                        {/* <td>
+                          {c.imageUrl ? (
+                            <div className="car-imgCell">
+                              <img src={c.imageUrl} alt={`${c.plateNo || 'car'}`} />
+                            </div>
+                          ) : (
+                            <span className="car-dim">-</span>
+                          )}
+                        </td> */}
+                        <td className="car-mono">{c.plateNo ?? '-'}</td>
+                        <td>{c.fuelType ?? '-'}</td>
+                        <td>{formatNumber(c.efficiencyKmPerL)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
-      )}
 
       <style>{styles}</style>
     </main>
