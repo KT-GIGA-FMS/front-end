@@ -15,7 +15,7 @@ export default function RootLayout({ children }) {
           <aside >
             <Sidebar />
           </aside>
-          <main style={{ padding: "1rem",overflow: "hidden"}}>
+          <main style={{ flex: "1", overflow: "hidden", display: "flex", flexDirection: "column" }}>
             {children}
           </main>
         </div>

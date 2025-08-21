@@ -7,7 +7,7 @@ export default function CarRegisterModal({ isOpen, onClose, onSubmit }) {
   const [form, setForm] = useState({
     carModelId: 1,
     plateNo: "",
-    imageUrl: "https://example.com/car1.jpg", // 기본값
+    // imageUrl: "https://example.com/car1.jpg", // 기본값
     fuelType: "휘발유",
     efficiencyKmPerL: 0,
     status: "사용가능",   // ← API 스펙에 맞춰 한글 상태
@@ -26,13 +26,16 @@ export default function CarRegisterModal({ isOpen, onClose, onSubmit }) {
     setLoading(true); setError(""); setResult(null);
   //fetch 보내는 부분 : 프록시 서버 사용 
     try {
-      const res = await fetch("api/proxy/car", {
+      const res = await fetch("/api/proxy/car", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Ocp-Apim-Subscription-Key": "mykey"
         },
-        body: JSON.stringify(form)   // API 스펙과 맞는 JSON 전송
+        body: JSON.stringify({
+          ...form,
+          imageUrl: "https://example.com/default-car.jpg" // 임의의 기본 이미지 URL
+        })   // API 스펙과 맞는 JSON 전송
       });
   
       if (!res.ok) throw new Error(`등록 실패: ${res.status}`);
@@ -42,7 +45,7 @@ export default function CarRegisterModal({ isOpen, onClose, onSubmit }) {
       if (onSubmit) await onSubmit(data);
       setResult(data);
       setForm({
-        carModelId: 1, plateNo: "", imageUrl: "", fuelType: "",
+        carModelId: 1, plateNo: "", fuelType: "",
         efficiencyKmPerL: 0, status: "사용가능", carType: "법인"
       });
       onClose();
@@ -66,7 +69,7 @@ export default function CarRegisterModal({ isOpen, onClose, onSubmit }) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <input className="border p-2 w-full" name="plateNo" placeholder="번호판" onChange={onChange} />
           <input className="border p-2 w-full" name="carModelId" type="number" placeholder="모델 ID" onChange={onChange} />
-          <input className="border p-2 w-full" name="imageUrl" placeholder="이미지 URL" onChange={onChange} />
+          {/* <input className="border p-2 w-full" name="imageUrl" placeholder="이미지 URL" onChange={onChange} /> */}
           <input className="border p-2 w-full" name="fuelType" placeholder="연료 종류" onChange={onChange} />
           <input className="border p-2 w-full" name="efficiencyKmPerL" type="number" placeholder="연비(km/L)" onChange={onChange} />
 

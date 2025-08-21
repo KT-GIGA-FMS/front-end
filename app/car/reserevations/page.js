@@ -14,7 +14,7 @@ const SAMPLE_CARS = [
   {
     carModelId: 1,
     plateNo: '12가3456',
-    imageUrl: 'https://example.com/car1.jpg',
+    // imageUrl: 'https://example.com/car1.jpg',
     fuelType: '휘발유',
     efficiencyKmPerL: 15.5,
     status: '사용가능',
@@ -85,7 +85,7 @@ export default async function CarServicePage() {
                   <th style={{ width: 120 }}>상태</th>
                   <th style={{ width: 100 }}>구분</th>
                   <th style={{ width: 80 }}>모델ID</th>
-                  <th>이미지</th>
+                  {/* <th>이미지</th> */}
                   <th style={{ width: 130 }}>번호판</th>
                   <th style={{ width: 100 }}>연료</th>
                   <th style={{ width: 120 }}>연비 (km/L)</th>
@@ -97,16 +97,15 @@ export default async function CarServicePage() {
                     <td><Badge text={c.status || '-'} /></td>
                     <td><Badge text={c.carType || '-' } /></td>
                     <td>{c.carModelId ?? '-'}</td>
-                    <td>
+                    {/* <td>
                       {c.imageUrl ? (
                         <div className="car-imgCell">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={c.imageUrl} alt={`${c.plateNo || 'car'}`} />
                         </div>
                       ) : (
                         <span className="car-dim">-</span>
                       )}
-                    </td>
+                    </td> */}
                     <td className="car-mono">{c.plateNo ?? '-'}</td>
                     <td>{c.fuelType ?? '-'}</td>
                     <td>{formatNumber(c.efficiencyKmPerL)}</td>
