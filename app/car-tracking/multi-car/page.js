@@ -7,14 +7,14 @@ export default function CarTrackingPage() {
 
   const MapView = dynamic(() => import("../../../components/MapView"), { ssr: false });
   const tabs = [
-    { label: "실시간 차량 현황", href: "/car-tracking" },
-    { label: "전체 운행 현황", href: "/car-tracking/multi-car" },
+    { label: "🎯 단일 차량 추적", href: "/car-tracking" },
+    { label: "🌍 전체 차량 보기", href: "/car-tracking/multi-car" },
   ];
   return(
 
-    <div className=" bg-gray-50">
+    <div className="bg-gray-50 overflow-y">
       <NavBar tabs={tabs} />
-      <div className="w-50%">
+      <div>
         <MapView />
       </div>
     </div>
