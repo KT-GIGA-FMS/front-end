@@ -20,7 +20,7 @@ const vehicleManagementData = [
     location: "본사 주차장 A구역",
     driver: "김사원",
     // image: "/api/placeholder/60/40"
-    image: "../public/src/car_img/g90.png"
+    // image: "../public/src/car_img/g90.png"
   },
   {
     id: 2,
@@ -36,7 +36,7 @@ const vehicleManagementData = [
     location: "정비소",
     driver: "-",
     // image: "/api/placeholder/60/40"
-    image: "../public/src/car_img/avante.png"
+    // image: "../public/src/car_img/avante.png"
   },
   {
     id: 3,
@@ -52,7 +52,7 @@ const vehicleManagementData = [
     location: "본사 주차장 B구역",
     driver: "이대리",
     // image: "/api/placeholder/60/40"
-    image: "../public/src/car_img/g70.png"
+    // image: "../public/src/car_img/g70.png"
   }
 ];
 
@@ -195,11 +195,6 @@ export default function CarManagementPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center">
-                          <img
-                            src={vehicle.image}
-                            alt={vehicle.name}
-                            className="w-12 h-8 object-cover rounded border mr-3"
-                          />
                           <div>
                             <div className="text-sm font-medium text-gray-900">
                               {vehicle.name}
