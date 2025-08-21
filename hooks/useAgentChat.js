@@ -52,6 +52,8 @@ export default function useAgentChat() {
           }
         } catch (e) {
           console.error('❌ Session creation failed:', e);
+          // 기본 메시지 표시
+          setMessages([{ role: "assistant", content: "죄송합니다. 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요." }]);
         }
       })();
     }
@@ -82,6 +84,8 @@ export default function useAgentChat() {
       }
     } catch (error) {
       console.error('❌ Send message failed:', error);
+      // 에러 메시지 표시
+      setMessages((prev) => [...prev, { role: "assistant", content: "죄송합니다. 메시지 전송에 실패했습니다. 다시 시도해주세요." }]);
     } finally {
       setLoading(false);
     }

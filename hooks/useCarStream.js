@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Client } from "@stomp/stompjs";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { Stomp } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
 function num(x, d = 0) {
   const n = Number(x);
   return Number.isFinite(n) ? n : d;
 }
-function parseTs(ts) {
-  if (typeof ts === "number") return ts;
-  if (typeof ts === "string") {
-    const m = Date.parse(ts); // "YYYY-MM-DDTHH:mm:ss.SSS" → 로컬 시간 기준 파싱
+
+function extractTime(timestamp) {
+  if (timestamp) {
+    const m = Date.parse(timestamp);
     if (!Number.isNaN(m)) return m;
   }
   return Date.now();
@@ -22,20 +22,22 @@ function parseTs(ts) {
  * @param {string|null} carId  차량ID (차량별 토픽을 구독하려면 필수)
  * @param {object} opts
  *   - sockUrl: SockJS HTTP 엔드포인트 (기본 .env의 NEXT_PUBLIC_SOCKJS_HTTP)
- *   - byCar: true면 /topic/telemetry.{carId}, false면 /topic/telemetry
+ *   - byCar: true면 /topic/vehicle/{carId}, false면 /topic/vehicles/all
  *   - throttleMs: 포인트 업데이트 최소 간격(ms)
  *   - maxPath: 경로 최대 길이
  *   - topicOverride: 커스텀 토픽을 직접 주고 싶을 때
- *   - appPublishDest: 서버로 publish할 목적지 (기본 "/app/telemetry")
+ *   - debug: 디버그 출력 여부
  */
-export default function useCarStream(carId, opts = {}) {
+export default function useCarStream(
+  carId = null,
+  opts = {}
+) {
   const {
-    sockUrl = process.env.NEXT_PUBLIC_SOCKJS_HTTP || "",
+    sockUrl = process.env.NEXT_PUBLIC_SOCKJS_HTTP ,
     byCar = true,
     throttleMs = 200,
     maxPath = 5000,
     topicOverride,
-    appPublishDest = "/app/telemetry",
     debug: debugOption = false,
   } = opts;
 
@@ -45,10 +47,12 @@ export default function useCarStream(carId, opts = {}) {
         : debugOption
         ? (m) => console.log("[STOMP]", m)
         : () => {};
-// 진단용: 현재 설정 출력
-useEffect(() => {
+
+  // 진단용: 현재 설정 출력
+  useEffect(() => {
     console.log("[CFG] sockUrl:", sockUrl, "byCar:", byCar, "carId:", carId);
-    }, [sockUrl, byCar, carId]);
+    console.log("[CFG] 환경변수 NEXT_PUBLIC_SOCKJS_HTTP:", process.env.NEXT_PUBLIC_SOCKJS_HTTP);
+  }, [sockUrl, byCar, carId]);
 
   const [connected, setConnected] = useState(false);
   const [lastPoint, setLastPoint] = useState(null);
@@ -60,122 +64,133 @@ useEffect(() => {
   const lastEmitRef = useRef(0);
 
   // 구독 토픽 결정
-  const topic =
-    topicOverride ||
-    (byCar && carId ? `/topic/telemetry.${carId}` : `/topic/telemetry`);
-
-  // 연결
-  useEffect(() => {
-    const client = new Client({
-      webSocketFactory: () => new SockJS(sockUrl),
-      reconnectDelay: 1000,
-      heartbeatIncoming: 10000,
-      heartbeatOutgoing: 10000,
-      debug: debugFn,
-      onConnect: (frame) => {
-      console.log("[WS] CONNECTED", frame?.headers);
-          setConnected(true);
-        },
-        onWebSocketClose: (e) => {
-          console.log("[WS] CLOSE", e?.code, e?.reason);
-          setConnected(false);
-        },
-      onWebSocketClose: () => setConnected(false),
-      onStompError: (f) =>
-        console.error("STOMP error:", f.headers?.["message"], f.body),
-    });
-
-    client.activate();
-    clientRef.current = client;
-    return () => {
-        client.deactivate();
-        clientRef.current = null;
+  const topic = useMemo(() => {
+    if (topicOverride) {
+      console.log("[WS] 커스텀 토픽 사용:", topicOverride);
+      return topicOverride;
     }
-    // sockUrl만 연결 조건
-  }, [sockUrl, debugOption]);
+    
+    if (byCar && carId) {
+      return `/topic/vehicle/${carId}`;  // 개별 차량용
+    }
+    
+    return `/topic/vehicles/all`;  // 전체 차량용
+  }, [topicOverride, byCar, carId]);
 
-  // 구독/해제
+  // ✅ SockJS + Stomp 연결 (올바른 방식)
   useEffect(() => {
+    if (!sockUrl) {
+      console.warn("[WS] sockUrl이 없습니다");
+      return;
+    }
+
+    console.log("[WS] 연결 시도:", { sockUrl, topic, carId });
+    
+    // ✅ 올바른 방식: Stomp.over(new SockJS(...))
+    const sockClient = new SockJS(sockUrl);
+    const stompClient = Stomp.over(sockClient);
+    
+    // 디버그 설정
+    stompClient.debug = debugFn;
+
+    stompClient.connect({}, 
+      // 연결 성공 콜백
+      (frame) => {
+        console.log("[WS] 연결 성공:", frame);
+        setConnected(true);
+        clientRef.current = stompClient;
+        
+        // ✅ 토픽 구독
+        console.log("[WS] 토픽 구독:", topic);
+        const subscription = stompClient.subscribe(topic, (message) => {
+          console.log(`[WS] ${topic}에서 메시지 수신:`, message.body);
+          try {
+            const data = JSON.parse(message.body);
+            console.log("[WS] 파싱된 데이터:", data);
+            console.log("[WS] 데이터 필드 확인:", {
+              latitude: data.latitude,
+              longitude: data.longitude,
+              lat: data.lat,
+              lng: data.lng,
+              x: data.x,
+              y: data.y,
+              allKeys: Object.keys(data)
+            });
+            setLastTelemetry(data);
+            
+            // 다양한 필드명 시도
+            const latitude = data.latitude || data.lat || data.y;
+            const longitude = data.longitude || data.lng || data.x;
+            const { speed, heading, timestamp } = data;
+            if (latitude != null && longitude != null) {
+              const newPoint = {
+                lat: latitude,
+                lng: longitude,
+                speedKmh: speed || 0,
+                heading: heading || 0,
+                ts: extractTime(timestamp),
+              };
+              
+              const now = Date.now();
+              if (now - lastEmitRef.current >= throttleMs) {
+                setLastPoint(newPoint);
+                lastEmitRef.current = now;
+                
+                pathRef.current.push(newPoint);
+                if (pathRef.current.length > maxPath) {
+                  pathRef.current = pathRef.current.slice(-maxPath);
+                }
+              }
+            }
+          } catch (err) {
+            console.error("[WS] JSON parse error:", err, "원본:", message.body);
+          }
+        });
+        
+        subRef.current = subscription;
+      },
+      // 연결 실패 콜백
+      (error) => {
+        console.error("[WS] 연결 오류:", error);
+        setConnected(false);
+        clientRef.current = null;
+        subRef.current = null;
+      }
+    );
+
+    return () => {
+      if (subRef.current) {
+        subRef.current.unsubscribe();
+      }
+      if (stompClient && stompClient.connected) {
+        stompClient.disconnect();
+      }
+      clientRef.current = null;
+      subRef.current = null;
+    };
+  }, [sockUrl, topic, throttleMs, maxPath, debugOption]);
+
+  // 메시지 발송 함수
+  const publish = (data) => {
     const client = clientRef.current;
-    if (!client || !client.connected) return;
-
-  // 2) 기존 구독이 있다면 해제 (topic/carId/throttle 등 변경 시 중복 구독 방지)
-    subRef.current?.unsubscribe();
-    console.log("[WS] SUB", topic);    
-
-    subRef.current = client.subscribe(topic, (msg) => {
-      if (!msg?.body)  console.log("[WS][RX]", topic, msg.body);
-    //   return;
-      let raw;
-      try {
-        raw = JSON.parse(msg.body);
-      } catch {
-        return;
-      }
-
-      // 백엔드 스키마 매핑
-      const lat = num(raw.latitude ?? raw.lat, NaN);
-      const lng = num(raw.longitude ?? raw.lng, NaN);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-      const telem = {
-        id: raw.id ?? null,
-        vehicleId: raw.vehicleId ?? carId ?? null,
-        vehicleName: raw.vehicleName ?? null,
-        latitude: lat,
-        longitude: lng,
-        speed: num(raw.speed, 0),
-        heading: num(raw.heading, null),
-        status: raw.status ?? null,
-        timestamp: raw.timestamp ?? raw.ts ?? null, // 원문 그대로도 보관
-        ts: parseTs(raw.timestamp ?? raw.ts),
-        fuelLevel: num(raw.fuelLevel, null),
-        engineStatus: raw.engineStatus ?? null,
-        _raw: raw,
-      };
-
-      // 스로틀
-      const now = Date.now();
-      if (now - lastEmitRef.current < throttleMs) return; 
-      lastEmitRef.current = now;
-
-      // 경로 저장
-      const point = {
-        lat,
-        lng,
-        ts: telem.ts,
-        speedKmh: telem.speed,
-        heading: telem.heading,
-      };
-
-      //경로 버퍼 누적 및 메모리보호호
-      pathRef.current.push(point);
-      if (pathRef.current.length > maxPath) {
-        pathRef.current.splice(0, pathRef.current.length - maxPath);
-      }
-      //최종상태 갱신신
-      setLastTelemetry(telem);
-      setLastPoint(point);
-    });
-
-    // cleanup on re-subscribe
-    return () => subRef.current?.unsubscribe();
-  }, [topic, carId, throttleMs, maxPath, connected]);
-
-  // 서버로 테스트 발행(선택)
-  const publish = (payload) => {
-    const c = clientRef.current;
-    if (!c?.connected) return;
-    c.publish({
-      destination: appPublishDest,
-      body: JSON.stringify(payload),
-    });
+    if (!client || !client.connected) {
+      console.warn("[WS] publish 실패: 연결되지 않음");
+      return;
+    }
+    
+    try {
+      client.send("/app/telemetry", {}, JSON.stringify(data));
+      console.log("[WS] 메시지 발송:", data);
+    } catch (err) {
+      console.error("[WS] publish 오류:", err);
+    }
   };
 
   return {
     connected,
     lastPoint,
     lastTelemetry,
+    topic,
     getPath: () => pathRef.current.slice(),
     clearPath: () => {
       pathRef.current = [];
