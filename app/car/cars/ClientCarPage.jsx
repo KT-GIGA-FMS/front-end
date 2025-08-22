@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NavBar from "../../../components/NavBar";
 import CarRegisterModal from "./CarResgisterModal";
+import "../../../styles/car-page.css";
 
 
 // Client Component - 데이터는 props로 받음
@@ -33,28 +34,88 @@ function formatNumber(n) {
   }
 }
 
+// 모델명 결정 함수
+function getModelName(car) {
+  // 차량 모델 매핑
+  const modelMap = {
+    1: "G90",
+    2: "아반떼", 
+    3: "G70",
+    4: "소나타",
+    5: "K5"
+  };
+  
+  // 1순위: carModelName (새로운 모달에서 입력된 경우)
+  if (car.carModelName && car.carModelName.trim()) {
+    return car.carModelName.trim();
+  } 
+  // 2순위: carModelId를 통한 매핑
+  else if (car.carModelId !== undefined && car.carModelId !== null) {
+    return modelMap[car.carModelId] || `모델${car.carModelId}`;
+  }
+  // 3순위: model 필드
+  else if (car.model && car.model.trim()) {
+    return car.model.trim();
+  }
+  // 4순위: modelName 필드
+  else if (car.modelName && car.modelName.trim()) {
+    return car.modelName.trim();
+  }
+  // 5순위: name 필드
+  else if (car.name && car.name.trim()) {
+    return car.name.trim();
+  }
+  // 최후순위: 번호판이라도 표시
+  else if (car.plateNo) {
+    return `차량(${car.plateNo})`;
+  }
+  
+  return "알 수 없는 모델";
+}
+
 export default function CarServicePage({ initialCars = [] }) {
   const [cars, setCars] = useState(initialCars);
+  const [loading, setLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // 차량 목록 새로고침
+  const refreshCarList = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/proxy/car', {
+        headers: { 'Cache-Control': 'no-cache' },
+        cache: 'no-store',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🚗 차량 목록 새로고침:', data);
+        const carList = Array.isArray(data) ? data : (data.cars || data.data || []);
+        setCars(carList);
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error('차량 목록 새로고침 실패:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 30초마다 자동 새로고침
+  useEffect(() => {
+    const interval = setInterval(refreshCarList, 30000);
+    return () => clearInterval(interval);
+  }, []);
   
   const handleCarRegister = async (carData) => {
     try {
-      // 새 차량을 목록에 추가
-      const newCar = {
-        carModelId: cars.length + 1,
-        plateNo: carData.plateNo,
-        // imageUrl: carData.imageUrl || 'https://example.com/default-car.jpg',
-        fuelType: carData.fuelType || '휘발유',
-        efficiencyKmPerL: carData.efficiencyKmPerL || 0,
-        status: carData.status === 'AVAILABLE' ? '사용가능' : carData.status,
-        carType: carData.ownerType === 'CORP' ? '법인' : '개인',
-      };
-      
-      setCars(prev => [...prev, newCar]);
-      console.log('차량 등록 성공:', newCar);
+      console.log('🚗 차량 등록 완료, 목록 새로고침 중...', carData);
+      // 등록 완료 후 목록 새로고침
+      await refreshCarList();
     } catch (error) {
-      console.error('차량 등록 실패:', error);
-      alert('차량 등록에 실패했습니다.');
+      console.error('차량 등록 후 새로고침 실패:', error);
+      alert('차량 등록 후 목록 업데이트에 실패했습니다.');
     }
   };
   
@@ -68,10 +129,38 @@ export default function CarServicePage({ initialCars = [] }) {
     <main className="w-full h-full bg-gray-50 flex flex-col">
         <NavBar tabs={tabs} />
         <div className="flex-1 p-6">
-          <div className="flex justify-end mb-4">
-            <button className="bg-gray-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium" onClick={() => setIsModalOpen(true)}>
-                    차량 등록
-            </button>
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">🚗 차량 목록</h1>
+              <p className="text-sm text-gray-600">
+                마지막 업데이트: {lastUpdated.toLocaleString()}
+                {loading && <span className="text-blue-600 ml-2">(업데이트 중...)</span>}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={refreshCarList}
+                disabled={loading}
+                className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"></div>
+                    새로고침 중...
+                  </>
+                ) : (
+                  <>
+                    🔄 새로고침
+                  </>
+                )}
+              </button>
+              <button 
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium" 
+                onClick={() => setIsModalOpen(true)}
+              >
+                ➕ 차량 등록
+              </button>
+            </div>
           </div>
           <CarRegisterModal
             isOpen={isModalOpen}
@@ -79,10 +168,33 @@ export default function CarServicePage({ initialCars = [] }) {
             onSubmit={handleCarRegister} className="z-50"
           />
           
-          <p className="car-sub mb-4">총 <strong>{cars.length}</strong>대</p>
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-blue-800">
+                <span>ℹ️</span>
+                <span className="text-sm">
+                  총 <strong>{cars.length}</strong>대의 차량이 등록되어 있습니다.
+                </span>
+              </div>
+              <a href="/car/management" className="text-blue-600 hover:text-blue-700 underline text-sm">
+                차량 관리 페이지 →
+              </a>
+            </div>
+          </div>
 
           {cars.length === 0 ? (
-            <div className="car-empty"><p>표시할 차량이 없습니다.</p></div>
+            <div className="car-empty">
+              <div className="text-center py-12">
+                <div className="text-4xl mb-4">🚗</div>
+                <p className="text-gray-600 mb-4">등록된 차량이 없습니다</p>
+                <button 
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md text-sm font-medium" 
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  첫 번째 차량 등록하기
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="car-card">
               <div className="car-tableWrap">
@@ -91,7 +203,7 @@ export default function CarServicePage({ initialCars = [] }) {
                     <tr>
                       <th style={{ width: 120 }}>상태</th>
                       <th style={{ width: 100 }}>구분</th>
-                      <th style={{ width: 80 }}>모델ID</th>
+                      <th style={{ width: 120 }}>모델명</th>
                       {/* <th>이미지</th> */}
                       <th style={{ width: 130 }}>번호판</th>
                       <th style={{ width: 100 }}>연료</th>
@@ -103,7 +215,7 @@ export default function CarServicePage({ initialCars = [] }) {
                       <tr key={`${c.plateNo || idx}`}>
                         <td><Badge text={c.status || '-'} /></td>
                         <td><Badge text={c.carType || '-' } /></td>
-                        <td>{c.carModelId ?? '-'}</td>
+                        <td className="font-medium text-gray-900">{getModelName(c)}</td>
                         {/* <td>
                           {c.imageUrl ? (
                             <div className="car-imgCell">
@@ -124,32 +236,9 @@ export default function CarServicePage({ initialCars = [] }) {
             </div>
           )}
         </div>
-
-      <style>{styles}</style>
     </main>
   );
 }
-
-const styles = `
-  .car-wrap { padding: 32px 24px; max-width: 1100px; margin: 0 auto; }
-  .car-hd h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
-  .car-titleRow { display: flex; align-items: center; gap: 10px; }
-  .car-mini { font-size: 12px; color: #5b6b7a; background: #f2f5f8; border: 1px solid #e3e8ee; padding: 2px 8px; border-radius: 9999px; }
-  .car-sub { color: #5b6b7a; margin-top: 8px; }
-  .car-err { background: #1a1a1a; color: #ffb4b4; padding: 12px; border-radius: 10px; overflow: auto; }
-  .car-card { background: #ffffff; border: 1px solid #e6e8eb; border-radius: 16px; box-shadow: 0 4px 14px rgba(0,0,0,0.04); }
-  .car-tableWrap { overflow: auto; border-radius: 16px; }
-  .car-tbl { width: 100%; border-collapse: separate; border-spacing: 0; }
-  .car-tbl thead th { text-align: left; font-weight: 700; font-size: 13px; color: #49576a; background: #f7f9fc; position: top: 0; padding: 14px 16px; border-bottom: 1px solid #e6e8eb; }
-  .car-tbl tbody td { padding: 14px 16px; font-size: 14px; color: #2d3643; border-bottom: 1px solid #f0f2f4; vertical-align: middle; }
-  .car-tbl tbody tr:hover { background: #fbfdff; }
-  .car-dim { color: #9aa7b4; }
-  .car-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
-  .car-imgCell { display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 48px; border-radius: 8px; overflow: hidden; border: 1px solid #e6e8eb; background: #fafbfc; }
-  .car-imgCell img { width: 100%; height: 100%; object-fit: cover; }
-  .car-empty { display: grid; place-items: center; height: 180px; color: #6b7280; border: 2px dashed #e5e7eb; border-radius: 16px; background: #fcfcfd; }
-  .car-badge { display: inline-block; padding: 4px 10px; border-radius: 9999px; border: 1px solid; font-size: 12px; line-height: 1; white-space: nowrap; }
-`;
 
 /*
 ===============================
