@@ -48,12 +48,17 @@ export default function MapView({ carId: initialCarId = "veh-0005" , maxTrail = 
 
 // 차량 스트림 데이터 받아오는 부분 (단일 차량 추적)
   const singleCarStream = useCarStream(actualCarId, {
-    byCar: true, throttleMs: 0, maxPath: maxTrail, debug: true,
+    byCar: true, 
+    throttleMs: 100, // 너무 빠르면 부하, 너무 느리면 끊김
+    maxPath: maxTrail, 
+    debug: true,
   });
 
   // 다중 차량 추적
   const multiCarStream = useMultiCarStream(multiTrackingEnabled ? trackedVehicles : [], {
-    throttleMs: 0, maxPath: maxTrail, debug: true,
+    throttleMs: 100, 
+    maxPath: maxTrail, 
+    debug: true,
   });
 
   // 현재 사용 중인 스트림 결정
@@ -81,20 +86,60 @@ export default function MapView({ carId: initialCarId = "veh-0005" , maxTrail = 
   };
 
   useEffect(() => {
+    console.log("=".repeat(80));
+    console.log("[MAP] 🔄 lastPoint 변화 감지");
+    console.log("[MAP] 🚗 현재 선택된 차량:", selectedCarId);
+    console.log("[MAP] 📡 연결 상태:", connected);
+    console.log("[MAP] 🎯 구독 토픽:", topic);
+    
     if (lastPoint) {
-      console.log("[lastPoint]", lastPoint);
-      // 예: console.log("[lastPoint]", lastPoint.lat, lastPoint.lng, lastPoint.speedKmh);
+      console.log("[MAP] ✅ 실시간 위치 데이터 수신!");
+      console.log("[MAP] 📊 상세 데이터:", {
+        vehicleId: lastPoint.vehicleId,
+        lat: lastPoint.lat, 
+        lng: lastPoint.lng, 
+        speed: lastPoint.speedKmh,
+        heading: lastPoint.heading,
+        timestamp: new Date(lastPoint.ts).toLocaleTimeString(),
+        vehicleName: lastPoint.vehicleName,
+        plateNo: lastPoint.plateNo,
+        fuelLevel: lastPoint.fuelLevel,
+        engineStatus: lastPoint.engineStatus,
+        status: lastPoint.status
+      });
+      
+      // 데이터 검증
+      if (lastPoint.vehicleId !== selectedCarId) {
+        console.warn("[MAP] ⚠️ 차량 ID 불일치:");
+        console.warn("[MAP] 🎯 요청:", selectedCarId);
+        console.warn("[MAP] 📨 수신:", lastPoint.vehicleId);
+      } else {
+        console.log("[MAP] ✅ 차량 ID 매칭 확인됨");
+      }
+      
+      if (!lastPoint.lat || !lastPoint.lng) {
+        console.error("[MAP] ❌ 좌표 데이터 누락!");
+      } else {
+        console.log("[MAP] ✅ 좌표 데이터 정상");
+      }
     } else {
-      console.log("[lastPoint] waiting…");
+      console.log("[MAP] ⏳ 실시간 데이터 대기중...");
+      console.log("[MAP] 🔍 체크포인트:", {
+        선택된차량: selectedCarId,
+        연결상태: connected,
+        토픽: topic,
+        다중추적모드: multiTrackingEnabled
+      });
     }
-  }, [lastPoint]);
+    console.log("=".repeat(80));
+  }, [lastPoint, selectedCarId, connected, topic, multiTrackingEnabled]);
   
 // 실시간 스트림 데이터 + 백엔드 데이터 조합으로 배지 값 구성
 const selectedVehicle = vehicleList.find(v => v.vehicleId === selectedCarId);
 
-// 우선순위: 1) WebSocket 실시간 데이터 2) 백엔드 API 데이터 3) 기본값
-const driverName = lastTelemetry?.vehicleName ?? selectedVehicle?.vehicleName ?? `Vehicle_${selectedCarId}`;
-const plateNo = lastTelemetry?.plateNo ?? selectedVehicle?.plateNo ?? "";
+// 우선순위: 1) WebSocket 실시간 데이터(lastPoint 포함) 2) lastTelemetry 3) 백엔드 API 데이터 4) 기본값
+const driverName = lastPoint?.vehicleName || lastTelemetry?.vehicleName || selectedVehicle?.vehicleName || `Vehicle_${selectedCarId}`;
+const plateNo = lastPoint?.plateNo || lastTelemetry?.plateNo || selectedVehicle?.plateNo || "";
 
 const carMeta = { driverName, plateNo };
 
@@ -102,8 +147,10 @@ console.log("[MAP] 차량 메타 정보:", {
   selectedCarId, 
   driverName, 
   plateNo, 
+  hasRealTimePoint: !!lastPoint,
   hasRealTimeData: !!lastTelemetry, 
-  hasApiData: !!selectedVehicle 
+  hasApiData: !!selectedVehicle,
+  actualDataSource: lastPoint?.vehicleName ? 'realtime-point' : lastTelemetry?.vehicleName ? 'realtime-telemetry' : selectedVehicle?.vehicleName ? 'api' : 'default'
 });
 
   //지도 상태 관리 변수 
@@ -112,7 +159,7 @@ console.log("[MAP] 차량 메타 정보:", {
     const mapRef = useRef(null); 
     const markerRef = useRef(null); // 단일 추적 모드용
     const polylineRef = useRef(null); // 단일 추적 모드용 (전체 이동 경로)
-    const destinationMarkerRef = useRef(null); // 목적지 마커
+  
     const pathRef = useRef([]); // 전체 이동 경로 저장
     
     // 다중 추적 모드용
@@ -133,96 +180,14 @@ const VEHICLE_COLORS = [
 // ✅ 차량 설정 - 여기 숫자만 추가/수정하면 모든 콘텐츠 자동 생성
 const VEHICLE_NUMBERS = [1, 2, 3, 4, 5, 6]; // 🔧 차량 번호 리스트 (숫자만 수정하세요!)
 
-// 서울 주요 지역 목적지 리스트
-const DESTINATIONS = [
-  { lat: 37.5665, lng: 126.9780, name: "서울시청" },
-  { lat: 37.5519, lng: 126.9918, name: "동대문디자인플라자" },
-  { lat: 37.5172, lng: 127.0473, name: "강남역" },
-  { lat: 37.5596, lng: 126.9426, name: "홍대입구역" },
-  { lat: 37.5796, lng: 126.9770, name: "경복궁" },
-  { lat: 37.5758, lng: 126.9768, name: "광화문광장" }
-];
 
-// 자동 생성된 차량별 목적지 매핑
-const VEHICLE_DESTINATIONS = {};
-VEHICLE_NUMBERS.forEach((num, index) => {
-  const vehicleId = `veh-000${num}`;
-  VEHICLE_DESTINATIONS[vehicleId] = DESTINATIONS[index % DESTINATIONS.length];
-});
 
 function getVehicleColor(vehicleId, vehicleList) {
   const index = vehicleList.findIndex(v => v.vehicleId === vehicleId);
   return VEHICLE_COLORS[index % VEHICLE_COLORS.length] || "#FF0000";
 }
 
-// 목적지 마커 콘텐츠 생성
-const makeDestinationMarkerContent = ({ name, color = "#FF0000" }) => {
-  return `
-  <div style="position:relative; transform: translate(-50%, -100%);">
-    <button
-      type="button"
-      style="
-        position:absolute;
-        bottom: 28px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 4px 8px;
-        background:#1a365d;
-        color:#fff;
-        border:1px solid rgba(255,255,255,0.3);
-        border-radius: 6px;
-        font-size:10px;
-        line-height:1;
-        white-space:nowrap;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-        cursor: default;
-        user-select: none;
-      "
-      title="목적지: ${name}"
-    >
-      🏁 ${name}
-    </button>
-    <div
-      style="
-        width:16px;height:16px;
-        background:#1a365d;border:2px solid #fff;
-        border-radius: 4px;
-        box-shadow: 0 0 0 2px rgba(26,54,93,0.3);
-      "
-    ></div>
-  </div>
-`;
-};
 
-// 목적지 마커만 생성 및 업데이트
-const updateDestinationMarker = (vehicleId) => {
-  if (!mapRef.current || !VEHICLE_DESTINATIONS[vehicleId]) return;
-  
-  const destination = VEHICLE_DESTINATIONS[vehicleId];
-  const color = getVehicleColor(vehicleId, vehicleList);
-  
-  // 목적지 위치
-  const destPos = new naver.maps.LatLng(destination.lat, destination.lng);
-  
-  // 기존 목적지 마커 제거
-  if (destinationMarkerRef.current) {
-    destinationMarkerRef.current.setMap(null);
-  }
-  
-  // 목적지 마커 생성
-  destinationMarkerRef.current = new naver.maps.Marker({
-    position: destPos,
-    map: mapRef.current,
-    icon: { 
-      content: makeDestinationMarkerContent({ name: destination.name, color }), 
-      anchor: new naver.maps.Point(8, 8) 
-    },
-    title: `목적지: ${destination.name}`,
-    zIndex: 1000
-  });
-  
-  console.log(`[DESTINATION] 목적지 마커 업데이트: ${vehicleId} -> ${destination.name}`);
-};
 
 //마커 생성 함수
   /** 🔹 3D 차량 이미지 마커 생성: 차량 이미지 + 위쪽에 배지 */
@@ -363,19 +328,27 @@ const makeMarkerContent = ({ driverName, plateNo, color = "#FF0000" }) => {
   useEffect(() => {
     if (multiTrackingEnabled) return; // 다중 추적 모드에서는 실행하지 않음
     
-    console.log("[MAP] 🔄 Single vehicle useEffect 트리거:", { 
+    console.log("🗺️ ".repeat(20));
+    console.log("[MAP] 🔄 Single vehicle 지도 업데이트 트리거");
+    console.log("[MAP] 📊 상태 점검:", { 
       mapReady, 
       mapInitialized,
       hasMap: !!mapRef.current, 
       hasMarker: !!markerRef.current,
+      hasPolyline: !!polylineRef.current,
       lastPoint: lastPoint ? `${lastPoint.lat}, ${lastPoint.lng}` : null,
-      lastTelemetry: lastTelemetry,
+      lastPointVehicleId: lastPoint?.vehicleId,
       selectedCarId: selectedCarId,
-      multiTrackingEnabled: multiTrackingEnabled
+      multiTrackingEnabled: multiTrackingEnabled,
+      pathLength: pathRef.current.length
     });
     
     if (!mapReady || !mapRef.current || !lastPoint) {
-      console.log("[MAP] ❌ 조건 미충족 - 업데이트 건너뜀");
+      console.log("[MAP] ❌ 조건 미충족 - 업데이트 건너뜀:", {
+        mapReady,
+        hasMapRef: !!mapRef.current,
+        hasLastPoint: !!lastPoint
+      });
       return;
     }
     
@@ -384,30 +357,46 @@ const makeMarkerContent = ({ driverName, plateNo, color = "#FF0000" }) => {
     
     // 첫 번째 데이터 수신 시 지도 초기화
     if (!mapInitialized) {
-      initializeMapWithData(lat, lng, selectedCarId);
-      console.log("[MAP] 🎯 첫 데이터로 지도 초기화:", { lat, lng });
+      initializeMapWithData(lat, lng, lastPoint.vehicleId || selectedCarId);
+      console.log("[MAP] 🎯 첫 데이터로 지도 초기화:", { 
+        lat, lng, 
+        receivedVehicleId: lastPoint.vehicleId, 
+        selectedCarId,
+        dataMatch: lastPoint.vehicleId === selectedCarId
+      });
       return;
     }
     
-    console.log("[MAP] 🎯 마커 위치 업데이트:", { lat, lng });
+    console.log("[MAP] 🎯 마커 위치 업데이트 시작:", { 
+      lat, lng, 
+      차량ID: lastPoint.vehicleId,
+      속도: lastPoint.speedKmh + "km/h"
+    });
   
     // 모든 경로 점을 저장 (제한 없이 전체 이동 경로 표시)
     pathRef.current.push(ll);
+    console.log("[MAP] 📈 경로 포인트 추가:", pathRef.current.length);
     
-    console.log("[MAP] 📍 폴리라인 경로 업데이트, 총 포인트:", pathRef.current.length);
-    polylineRef.current?.setPath(pathRef.current);
+    if (polylineRef.current) {
+      polylineRef.current.setPath(pathRef.current);
+      console.log("[MAP] 📍 폴리라인 경로 업데이트 완료, 총 포인트:", pathRef.current.length);
+    } else {
+      console.warn("[MAP] ⚠️ polylineRef.current가 null입니다!");
+    }
     
     if (markerRef.current) {
       markerRef.current.setPosition(ll);
-      console.log("[MAP] ✅ 마커 setPosition 완료");
+      console.log("[MAP] ✅ 마커 setPosition 완료:", { lat, lng });
+      
+      // 마커 제목도 실시간 데이터로 업데이트
+      const title = `${lastPoint.vehicleName || driverName} · ${lastPoint.plateNo || plateNo} (${lastPoint.speedKmh || 0}km/h)`;
+      markerRef.current.setTitle(title);
+      console.log("[MAP] 🏷️ 마커 제목 업데이트:", title);
     } else {
       console.error("[MAP] ❌ markerRef.current가 null입니다!");
     }
     
-    // 목적지 마커 표시 (차량 선택 시 한 번만)
-    if (pathRef.current.length === 1) {
-      updateDestinationMarker(selectedCarId);
-    }
+
   
     if (pathRef.current.length % 5 === 0) {
       console.log("[MAP] 🗺️ 지도 중심 이동");
@@ -441,10 +430,10 @@ const makeMarkerContent = ({ driverName, plateNo, color = "#FF0000" }) => {
       const color = getVehicleColor(vehicleId, vehicleList);
       const vehicle = vehicleList.find(v => v.vehicleId === vehicleId);
       
-      // 우선순위: 1) 각 차량의 실시간 데이터 2) 백엔드 API 데이터 3) 기본값  
+      // 우선순위: 1) 각 차량의 실시간 데이터(point 포함) 2) lastTelemetry 3) 백엔드 API 데이터 4) 기본값  
       const vehicleMeta = {
-        driverName: lastTelemetry?.vehicleName || vehicle?.vehicleName || `Vehicle_${vehicleId}`,
-        plateNo: lastTelemetry?.plateNo || vehicle?.plateNo || ""
+        driverName: point?.vehicleName || lastTelemetry?.vehicleName || vehicle?.vehicleName || `Vehicle_${vehicleId}`,
+        plateNo: point?.plateNo || lastTelemetry?.plateNo || vehicle?.plateNo || ""
       };
       
       console.log(`[MAP] 다중추적 차량 ${vehicleId} 메타:`, vehicleMeta);
@@ -529,11 +518,7 @@ const makeMarkerContent = ({ driverName, plateNo, color = "#FF0000" }) => {
                     polylineRef.current.setMap(null);
                     polylineRef.current = null;
                   }
-                  // 기존 목적지 마커 제거 (새로운 차량 선택 시)
-                  if (destinationMarkerRef.current) {
-                    destinationMarkerRef.current.setMap(null);
-                    destinationMarkerRef.current = null;
-                  }
+
                   
                   // 다중 추적 마커들도 모두 제거
                   multiMarkersRef.current.forEach(marker => marker.setMap(null));
@@ -544,14 +529,14 @@ const makeMarkerContent = ({ driverName, plateNo, color = "#FF0000" }) => {
                   // 경로 데이터 초기화
                   pathRef.current = [];
                   
-                  // 새 차량 선택
+                  // 새 차량 선택 - 이 순서가 중요! useCarStream이 새로운 carId로 재구독하도록
                   setSelectedCarId(vehicleId);
                   setIsCustomMode(false);
-                        setCustomVehicleId("");
+                  setCustomVehicleId("");
                   setMultiTrackingEnabled(false); // 항상 단일 추적 모드
                   setMapInitialized(false); // 지도 재초기화 허용
                   
-                  console.log(`[QUICK SELECT] 차량 전환 완료: ${vehicleId}, 기존 마커 제거됨`);
+                  console.log(`[QUICK SELECT] 차량 전환 완료: ${vehicleId}, 새로운 STOMP 구독 시작됨`);
                       }}
                       style={{
                         padding: "8px 12px",
@@ -574,13 +559,9 @@ const makeMarkerContent = ({ driverName, plateNo, color = "#FF0000" }) => {
         <div style={{ fontSize: 11, color: "#4a5568", marginTop: 8 }}>
           💡 클릭하여 해당 차량 번호의 실시간 추적을 시작합니다.
               </div>
-        {selectedCarId && VEHICLE_DESTINATIONS[selectedCarId] && (
-          <div style={{ fontSize: 12, color: "#2b6cb0", marginTop: 8, padding: 8, background: "#f0f9ff", borderRadius: 4 }}>
-            🏁 <strong>현재 목적지:</strong> {VEHICLE_DESTINATIONS[selectedCarId].name}
-            <br />
-            📍 위치: {VEHICLE_DESTINATIONS[selectedCarId].lat.toFixed(4)}, {VEHICLE_DESTINATIONS[selectedCarId].lng.toFixed(4)}
-            </div>
-        )}
+        
+
+        
       </div>
       
       <div id="naverMap" style={{ 
@@ -594,161 +575,22 @@ const makeMarkerContent = ({ driverName, plateNo, color = "#FF0000" }) => {
       
       {/* 연결 상태 및 실시간 정보 */}
       <div style={{ marginTop: 12, padding: 12, background: "#f5f5f5", borderRadius: 8 }}>
-        {/* <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          <span>WebSocket: <b style={{ color: connected ? "green" : "red" }}>{connected ? "CONNECTED" : "DISCONNECTED"}</b></span>
-          <span>구독 토픽: <code>{topic}</code></span>
-          <span>맵 준비: <b style={{ color: mapReady ? "green" : "orange" }}>{mapReady ? "완료" : "로딩중"}</b></span>
-          {dataTimeoutWarning && (
-            <span style={{ color: "orange", fontSize: 12 }}>⚠️ 데이터 수신 없음</span>
-          )}
-        </div>
-         */}
-        {/* 테스트 버튼들
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <button 
-            onClick={() => {
-              console.log("[TEST] 테스트 데이터 발송...");
-              publish({
-                action: "test",
-                carId: selectedCarId,
-                requestData: true,
-                timestamp: Date.now()
-              });
-            }}
-            disabled={!connected}
-            style={{ 
-              padding: "4px 8px", 
-              fontSize: 12, 
-              background: connected ? "#007bff" : "#ccc",
-              color: "white",
-              border: "none",
-              borderRadius: 4,
-              cursor: connected ? "pointer" : "not-allowed"
-            }}
-          >
-            📡 서버에 데이터 요청
-          </button>
-          
-          <button 
-            onClick={() => {
-              // 임시 테스트 데이터로 마커 이동 테스트
-              const testLat = 37.4979 + (Math.random() - 0.5) * 0.01;
-              const testLng = 127.0276 + (Math.random() - 0.5) * 0.01;
-              console.log("[TEST] 로컬 테스트 데이터:", { testLat, testLng });
-              
-              // useCarStream의 setLastPoint를 직접 호출할 수 없으므로 
-              // 여기서는 그냥 로그만 출력
-              if (markerRef.current && mapRef.current) {
-                const testLL = new naver.maps.LatLng(testLat, testLng);
-                markerRef.current.setPosition(testLL);
-                mapRef.current.setCenter(testLL);
-                console.log("[TEST] 마커 임시 이동 완료");
-              }
-            }}
-            style={{ 
-              padding: "4px 8px", 
-              fontSize: 12, 
-              background: "#28a745",
-              color: "white",
-              border: "none",
-              borderRadius: 4,
-              cursor: "pointer"
-            }}
-          >
-            🎯 마커 테스트 이동
-          </button>
-        </div>
-         */}
-        {/* 실시간 추적 상태 표시
-        <div style={{ 
-          marginTop: 16, 
-          padding: 12, 
-          background: connected ? "#f0fff4" : "#fff5f5", 
-          border: `1px solid ${connected ? "#9ae6b4" : "#fed7d7"}`, 
-          borderRadius: 8 
-        }}>
-  
-          <div style={{ fontSize: 11, color: "#666", marginBottom: 8 }}>
-            <strong>추적 중인 차량:</strong> {actualCarId || "없음"}
-            <br />
-            <strong>구독 토픽:</strong> <code style={{ background: "#f7fafc", padding: "1px 4px", borderRadius: 2 }}>{topic}</code>
-            <br />
-            <strong>연결 상태:</strong> {connected ? "✅ 연결됨" : "❌ 연결 안됨"}
-          </div>
-        </div> */}
+
+
+
 
         {/* 실시간 위치 정보 - 전체 데이터 표시 */}
         <div style={{ fontSize: 12, color: "#666", marginTop: 12 }}>
-          {lastPoint ? (
-            <div style={{ background: "#f8f9fa", padding: 12, borderRadius: 8, border: "1px solid #e9ecef" }}>
-              <h5 style={{ margin: "0 0 8px 0", fontSize: 13, fontWeight: "bold", color: "#495057" }}>📡 최신 수신 데이터</h5>
-              <div><strong>🚗 차량:</strong> {lastPoint.vehicleName} ({lastPoint.vehicleId})</div>
-              <div><strong>📍 위치:</strong> lat {lastPoint.lat?.toFixed(6)}, lng {lastPoint.lng?.toFixed(6)}</div>
-              <div><strong>🏃 속도:</strong> {lastPoint.speedKmh ?? 0}km/h, 방향: {lastPoint.heading ?? 0}°</div>
-              <div><strong>⛽ 연료:</strong> {lastPoint.fuelLevel ? `${lastPoint.fuelLevel}%` : 'N/A'}</div>
-              <div><strong>🔧 엔진:</strong> {lastPoint.engineStatus || 'N/A'}</div>
-              <div><strong>📊 상태:</strong> {lastPoint.status || 'N/A'}</div>
-              <div><strong>🕒 업데이트:</strong> {new Date(lastPoint.ts).toLocaleTimeString()}</div>
-              <div><strong>📈 경로:</strong> {pathRef.current.length}개 포인트</div>
+         
               
-              {/* 원본 텔레매틱 데이터 표시 */}
-              {lastTelemetry && (
-                <div style={{ marginTop: 8, padding: 8, background: "#fff3cd", borderRadius: 4 }}>
-                  <div style={{ fontSize: 11, fontWeight: "bold", color: "#856404" }}>📡 원본 텔레매틱 데이터:</div>
-                  <pre style={{ 
-                    fontSize: 9, 
-                    color: "#6c757d", 
-                    margin: "4px 0 0 0", 
-                    maxHeight: "100px", 
-                    overflow: "auto",
-                    background: "#f8f9fa",
-                    padding: "4px",
-                    borderRadius: "2px"
-                  }}>
-                    {JSON.stringify(lastTelemetry, null, 2)}
-                  </pre>
-                </div>
-              )}
               
-              {/* 데이터 변화량 표시 */}
-              <div style={{ marginTop: 8, padding: 8, background: "#e3f2fd", borderRadius: 4 }}>
-                <div style={{ fontSize: 11, fontWeight: "bold", color: "#1565c0" }}>📊 데이터 변화 감지:</div>
-                <div style={{ fontSize: 10, color: "#1976d2" }}>
-                  {lastPoint.vehicleId !== actualCarId && (
-                    <div>⚠️ 다른 차량 데이터: {lastPoint.vehicleId} (요청: {actualCarId})</div>
-                  )}
-                  <div>마지막 수신: {Math.round((Date.now() - lastPoint.ts) / 1000)}초 전</div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div>
-              {/* <div style={{ color: "orange", background: "#fffbf0", padding: 12, borderRadius: 8, border: "1px solid #fed7aa" }}>
-                ⏳ 데이터 대기 중... (토픽: {topic})
-              </div> */}
-            </div>
-          )}
+
+      
         </div>
         
-        {/* 전체 원본 데이터 표시 */}
-        {/* {lastPoint?.rawData && (
-          <details style={{ marginTop: 8, fontSize: 11 }}>
-            <summary style={{ cursor: "pointer", color: "#666" }}>🔍 전체 원본 데이터 (lastPoint)</summary>
-            <pre style={{ background: "#f0f8ff", padding: 8, borderRadius: 4, marginTop: 4, overflow: "auto", maxHeight: "200px" }}>
-              {JSON.stringify(lastPoint.rawData, null, 2)}
-            </pre>
-          </details>
-        )} */}
-        
-        {/* 텔레메트리 상세 정보 */}
-        {lastTelemetry && (
-          <details style={{ marginTop: 8, fontSize: 11 }}>
-            <summary style={{ cursor: "pointer", color: "#666" }}>상세 텔레메트리 정보</summary>
-            <pre style={{ background: "#fff", padding: 8, borderRadius: 4, marginTop: 4, overflow: "auto" }}>
-              {JSON.stringify(lastTelemetry, null, 2)}
-            </pre>
-          </details>
-        )}
+
+
+ 
       </div>
     </div>
   );
