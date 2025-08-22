@@ -1,0 +1,128 @@
+.car-wrap { 
+  padding: 32px 24px; 
+  max-width: 1100px; 
+  margin: 0 auto; 
+}
+
+.car-hd h1 { 
+  margin: 0; 
+  font-size: 28px; 
+  font-weight: 800; 
+  letter-spacing: -0.02em; 
+}
+
+.car-titleRow { 
+  display: flex; 
+  align-items: center; 
+  gap: 10px; 
+}
+
+.car-mini { 
+  font-size: 12px; 
+  color: #5b6b7a; 
+  background: #f2f5f8; 
+  border: 1px solid #e3e8ee; 
+  padding: 2px 8px; 
+  border-radius: 9999px; 
+}
+
+.car-sub { 
+  color: #5b6b7a; 
+  margin-top: 8px; 
+}
+
+.car-err { 
+  background: #1a1a1a; 
+  color: #ffb4b4; 
+  padding: 12px; 
+  border-radius: 10px; 
+  overflow: auto; 
+}
+
+.car-card { 
+  background: #ffffff; 
+  border: 1px solid #e6e8eb; 
+  border-radius: 16px; 
+  box-shadow: 0 4px 14px rgba(0,0,0,0.04); 
+}
+
+.car-tableWrap { 
+  overflow: auto; 
+  border-radius: 16px; 
+}
+
+.car-tbl { 
+  width: 100%; 
+  border-collapse: separate; 
+  border-spacing: 0; 
+}
+
+.car-tbl thead th { 
+  text-align: left; 
+  font-weight: 700; 
+  font-size: 13px; 
+  color: #49576a; 
+  background: #f7f9fc; 
+  position: sticky; 
+  top: 0; 
+  padding: 14px 16px; 
+  border-bottom: 1px solid #e6e8eb; 
+}
+
+.car-tbl tbody td { 
+  padding: 14px 16px; 
+  font-size: 14px; 
+  color: #2d3643; 
+  border-bottom: 1px solid #f0f2f4; 
+  vertical-align: middle; 
+}
+
+.car-tbl tbody tr:hover { 
+  background: #fbfdff; 
+}
+
+.car-dim { 
+  color: #9aa7b4; 
+}
+
+.car-mono { 
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; 
+}
+
+.car-imgCell { 
+  display: inline-flex; 
+  align-items: center; 
+  justify-content: center; 
+  width: 72px; 
+  height: 48px; 
+  border-radius: 8px; 
+  overflow: hidden; 
+  border: 1px solid #e6e8eb; 
+  background: #fafbfc; 
+}
+
+.car-imgCell img { 
+  width: 100%; 
+  height: 100%; 
+  object-fit: cover; 
+}
+
+.car-empty { 
+  display: grid; 
+  place-items: center; 
+  height: 180px; 
+  color: #6b7280; 
+  border: 2px dashed #e5e7eb; 
+  border-radius: 16px; 
+  background: #fcfcfd; 
+}
+
+.car-badge { 
+  display: inline-block; 
+  padding: 4px 10px; 
+  border-radius: 9999px; 
+  border: 1px solid; 
+  font-size: 12px; 
+  line-height: 1; 
+  white-space: nowrap; 
+}
